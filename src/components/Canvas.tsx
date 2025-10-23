@@ -1,4 +1,4 @@
-import ReactFlow, { Background, Controls, Handle, Position } from 'reactflow';
+import ReactFlow, { Background, Controls, Handle, Position, getSmoothStepPath } from 'reactflow';
 import type { Node, Edge, NodeChange, EdgeChange, Connection, EdgeProps } from 'reactflow';
 import { clsx } from 'clsx';
 import { Settings, AlertCircle } from 'lucide-react';
@@ -15,8 +15,17 @@ import { motion } from 'motion/react';
 import 'reactflow/dist/style.css';
 
 // Custom Edge Component with dynamic styling and animations
-const CustomEdge = ({ id, sourceX, sourceY, targetX, targetY, style = {}, markerEnd, data }: EdgeProps) => {
-  const edgePath = `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
+const CustomEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd, data }: EdgeProps) => {
+  const borderRadius = data?.pathOptions?.borderRadius || 20;
+  const [edgePath] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+    borderRadius,
+  });
   
   // Determine edge color and animation based on status
   const getEdgeStyle = () => {
@@ -413,6 +422,9 @@ export default function Canvas({ nodes, edges, onNodesChange, onEdgesChange, onC
         strokeWidth: 2,
         stroke: edgeColor,
       },
+      pathOptions: {
+        borderRadius: 20,
+      },
     };
   });
 
@@ -439,6 +451,9 @@ export default function Canvas({ nodes, edges, onNodesChange, onEdgesChange, onC
             color: '#64748b',
             width: 10,
             height: 10,
+          },
+          pathOptions: {
+            borderRadius: 20,
           },
         }}
       >
