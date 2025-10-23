@@ -302,11 +302,41 @@ const FlowBuilder: React.FC = () => {
       }
     }
     
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === id ? { ...node, data: { ...node.data, ...data } } : node
-      )
-    );
+    setNodes((nds) => {
+      const updatedNodes = nds.map((node) =>
+        node.id === id ? { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            config: { 
+              ...node.data.config, 
+              ...data 
+            } 
+          } 
+        } : node
+      );
+      
+      // Update activeNode if it's the same node being saved
+      if (activeNode && activeNode.id === id) {
+        const updatedActiveNode = updatedNodes.find(node => node.id === id);
+        if (updatedActiveNode) {
+          setActiveNode(updatedActiveNode);
+        }
+      }
+      
+      // Save to localStorage for session persistence
+      localStorage.setItem("flowState", JSON.stringify({ 
+        nodes: updatedNodes, 
+        edges 
+      }));
+      
+      return updatedNodes;
+    });
+    
+    // Show success toast
+    toast.success('Configuration saved', {
+      description: `Configuration for ${node?.data.label || 'node'} has been saved.`,
+    });
   };
 
   return (

@@ -148,10 +148,6 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
   const handleSave = (data: FormData) => {
     onSave(node.id, data);
     onClose();
-    
-    toast.success('Configuration saved', {
-      description: `${node.data.label} configuration has been updated.`,
-    });
   };
 
   return (
