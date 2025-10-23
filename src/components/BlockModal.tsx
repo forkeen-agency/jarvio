@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+// import { validateBlockConfig, getFieldErrors } from "../utils/validation";
 import {
   Drawer,
   DrawerClose,
@@ -30,6 +31,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, Clock, FileText } from "lucide-react";
+import { blockTypes } from "../data/blockTypes";
+import { motion } from "motion/react";
 
 const formSchema = z.object({
   // Amazon Sales Report fields
@@ -56,17 +60,30 @@ const formSchema = z.object({
   asinGranularity: z.string().optional(),
 });
 
-type FormData = z.infer<typeof formSchema>;
-
 interface BlockModalProps {
   isOpen: boolean;
   onClose: () => void;
-  node: any;
-  onSave: (id: string, data: any) => void;
+  node: {
+    id: string;
+    data: {
+      label: string;
+      type: string;
+      config?: Record<string, unknown>;
+      errorMessage?: string;
+      errorTimestamp?: string;
+      errorDetails?: string;
+      instructions?: string;
+      dateRange?: string;
+      dateGranularity?: string;
+      asinGranularity?: string;
+    };
+  } | null;
+  onSave: (id: string, data: Record<string, unknown>) => void;
 }
 
+type FormData = z.infer<typeof formSchema>;
+
 export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModalProps) {
-  
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -100,21 +117,21 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
     if (node?.data) {
       form.reset({
         // Amazon Sales Report
-        metric: node.data.config?.metric || "",
-        timeframe: node.data.config?.timeframe || "",
+        metric: (node.data.config?.metric as string) || "",
+        timeframe: (node.data.config?.timeframe as string) || "",
         
         // AI Agent
-        systemPrompt: node.data.config?.systemPrompt || "",
+        systemPrompt: (node.data.config?.systemPrompt as string) || "",
         
         // Gmail
-        recipient: node.data.config?.recipient || "",
-        subject: node.data.config?.subject || "",
-        customSubject: node.data.config?.customSubject || "",
-        message: node.data.config?.message || "",
+        recipient: (node.data.config?.recipient as string) || "",
+        subject: (node.data.config?.subject as string) || "",
+        customSubject: (node.data.config?.customSubject as string) || "",
+        message: (node.data.config?.message as string) || "",
         
         // Slack
-        channel: node.data.config?.channel || "",
-        customChannel: node.data.config?.customChannel || "",
+        channel: (node.data.config?.channel as string) || "",
+        customChannel: (node.data.config?.customChannel as string) || "",
         
         // Generic
         instructions: node.data.instructions || "",
@@ -141,24 +158,80 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
     <Drawer open={isOpen} onOpenChange={onClose} direction="right">
       <DrawerContent direction="right" className="max-h-[100vh] w-[400px]">
         <DrawerHeader className="text-left p-6">
-          <div className="flex items-center space-x-3">
-            <div className="h-8 w-8 flex items-center justify-center rounded-md bg-primary/10 text-primary font-bold uppercase">
-              {node.data.label?.[0] || "?"}
-            </div>
-            <div>
+          <motion.div 
+            className="flex items-center space-x-3"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            {(() => {
+              const blockType = blockTypes[node.data.type];
+              if (blockType?.icon) {
+                // Check if it's an image path (string) or Lucide icon
+                if (typeof blockType.icon === 'string') {
+                  return (
+                    <motion.div 
+                      className="h-8 w-8 flex items-center justify-center rounded-md bg-white border border-gray-200"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <img 
+                        src={blockType.icon} 
+                        alt={node.data.label}
+                        className="h-5 w-5 object-contain"
+                      />
+                    </motion.div>
+                  );
+                } else {
+                  // It's a Lucide icon
+                  const IconComponent = blockType.icon;
+                  return (
+                    <motion.div 
+                      className="h-8 w-8 flex items-center justify-center rounded-md bg-primary/10 text-primary"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      <IconComponent className="h-5 w-5" />
+                    </motion.div>
+                  );
+                }
+              }
+              // Fallback to first letter
+              return (
+                <motion.div 
+                  className="h-8 w-8 flex items-center justify-center rounded-md bg-primary/10 text-primary font-bold uppercase"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
+                  whileHover={{ scale: 1.05 }}
+                >
+                  {node.data.label?.[0] || "?"}
+                </motion.div>
+              );
+            })()}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2, ease: "easeOut" }}
+            >
               <DrawerTitle>{node.data.label || "New Step"}</DrawerTitle>
               <DrawerDescription>Configure your block parameters</DrawerDescription>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </DrawerHeader>
 
-        <div className="px-6 pb-4 flex-1 overflow-y-auto">
-          <Tabs defaultValue="current" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="input">INPUT</TabsTrigger>
-              <TabsTrigger value="current">CURRENT</TabsTrigger>
-              <TabsTrigger value="output">OUTPUT</TabsTrigger>
-            </TabsList>
+            <div className="px-6 pb-4 flex-1 overflow-y-auto">
+              <Tabs defaultValue="current" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="input">INPUT</TabsTrigger>
+                  <TabsTrigger value="current">CURRENT</TabsTrigger>
+                  <TabsTrigger value="output">OUTPUT</TabsTrigger>
+                  <TabsTrigger value="logs">LOGS</TabsTrigger>
+                </TabsList>
 
             <TabsContent value="input" className="mt-6">
               <div className="text-center text-muted-foreground py-16">
@@ -426,13 +499,53 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
               </Form>
             </TabsContent>
 
-            <TabsContent value="output" className="mt-6">
-              <div className="text-center text-muted-foreground py-16">
-                <p>Execute this node to view data</p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+                <TabsContent value="output" className="mt-6">
+                  <div className="text-center text-muted-foreground py-16">
+                    <p>Execute this node to view data</p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="logs" className="mt-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-4 w-4" />
+                      <h3 className="font-medium">Execution Logs</h3>
+                    </div>
+                    
+                    {node.data.errorMessage ? (
+                      <div className="space-y-3">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                            <span className="font-medium text-red-800">Execution Failed</span>
+                          </div>
+                          <div className="text-sm text-red-700 space-y-1">
+                            <p><strong>Error:</strong> {node.data.errorMessage}</p>
+                            <p><strong>Timestamp:</strong> {node.data.errorTimestamp}</p>
+                            <p><strong>Node ID:</strong> {node.id}</p>
+                          </div>
+                        </div>
+                        
+                        {node.data.errorDetails && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <h4 className="font-medium text-sm mb-2">Error Details</h4>
+                            <pre className="text-xs text-gray-700 bg-white p-3 rounded border overflow-auto max-h-40">
+                              {node.data.errorDetails}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground py-16">
+                        <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No execution logs yet</p>
+                        <p className="text-sm">Run the flow to see execution details</p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
 
         <DrawerFooter className="pt-4 px-6">
           <div className="flex gap-2">
@@ -452,8 +565,8 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
                     }, 1500);
                   }}
                   className="flex-1"
-                >
-                  ▶ Test Step
+          >
+            ▶ Test Step
                 </Button>
             <Button onClick={form.handleSubmit(handleSave)} className="flex-1">
               Save Parameters

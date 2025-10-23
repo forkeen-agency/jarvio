@@ -5,7 +5,7 @@ function App() {
   return (
     <div className="h-screen w-screen flex flex-col">
       <FlowBuilder />
-      <Toaster position="top-right" richColors />
+      <Toaster position="bottom-right" richColors />
     </div>
   );
 }

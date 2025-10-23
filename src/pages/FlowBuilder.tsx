@@ -5,13 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Layout, Trash2, RotateCcw } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from 'sonner';
+import { motion } from 'motion/react';
 import BlockLibrarySidebar from '../components/BlockLibrarySidebar';
 import Canvas from '../components/Canvas';
 import BlockModal from '../components/BlockModal';
+import ValidationLogsDrawer from '../components/ValidationLogsDrawer';
 import { useFlowRunner } from '../hooks/useFlowRunner';
 import { blockTypes } from '../data/blockTypes';
 import { getLayoutedElements } from '../utils/autoLayout';
+import { validateBlockConfig, hasValidationErrors, getAllValidationErrors } from '../utils/validation';
 
 const FlowBuilder: React.FC = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -21,32 +25,74 @@ const FlowBuilder: React.FC = () => {
   const [nextId, setNextId] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeNode, setActiveNode] = useState<Node | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isValidationLogsOpen, setIsValidationLogsOpen] = useState(false);
 
   const flowRunner = useFlowRunner(nodes);
-
-  // Persistência local - salvar automaticamente
-  useEffect(() => {
-    localStorage.setItem("flowState", JSON.stringify({ nodes, edges }));
-  }, [nodes, edges]);
-
-  // Carregar estado salvo ou template inicial
-  useEffect(() => {
-    const saved = localStorage.getItem("flowState");
-    if (saved) {
-      try {
-        const { nodes: savedNodes, edges: savedEdges } = JSON.parse(saved);
-        setNodes(savedNodes || []);
-        setEdges(savedEdges || []);
-      } catch (error) {
-        console.error("Erro ao carregar estado salvo:", error);
-      }
-    } else {
-      // Load template flow if no saved state
-      loadTemplateFlow();
+  
+  // Custom run function that tracks running state
+  const handleRunFlow = async () => {
+    setIsRunning(true);
+    try {
+      await flowRunner.runFlow();
+    } finally {
+      setIsRunning(false);
     }
-  }, [setNodes, setEdges]);
+  };
+  
+  // Add error details to nodes when they fail
+  const nodesWithErrorDetails = nodes.map(node => {
+    if ((flowRunner.status as Record<string, string>)[node.id] === 'error') {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          errorMessage: `Execution failed for ${node.data.label}`,
+          errorTimestamp: new Date().toLocaleString(),
+          errorDetails: `Error Code: EXEC_001\nError Type: Runtime Exception\nNode: ${node.data.label}\nTimestamp: ${new Date().toISOString()}\nStack Trace:\n  at executeNode()\n  at processFlow()\n  at runFlow()`
+        }
+      };
+    }
+    return node;
+  });
+  
+  // Calculate validation status
+  const nodesWithConfigErrors = nodes.filter(node => hasValidationErrors(node.data.type, node.data.config || {}));
+  const nodesWithExecutionErrors = nodes.filter(node => (flowRunner.status as Record<string, string>)[node.id] === 'error');
+  const nodesWithErrors = [...new Set([...nodesWithConfigErrors, ...nodesWithExecutionErrors])]; // Remove duplicates
+  const validationStatus = nodesWithErrors.length > 0 ? 'error' : 'valid';
+  
+  // Get detailed validation errors for tooltips
+  const getValidationErrorSummary = () => {
+    if (nodesWithErrors.length === 0) return '';
+    
+    const errorSummary = nodesWithErrors.map(node => {
+      const hasConfigErrors = hasValidationErrors(node.data.type, node.data.config || {});
+      const hasExecutionErrors = (flowRunner.status as Record<string, string>)[node.id] === 'error';
+      
+      if (hasConfigErrors && hasExecutionErrors) {
+        const configErrors = getAllValidationErrors(node.data.type, node.data.config || {});
+        const configErrorCount = Object.values(configErrors).flat().length;
+        return `${node.data.label} (${configErrorCount} config error${configErrorCount > 1 ? 's' : ''}, execution failed)`;
+      } else if (hasConfigErrors) {
+        const configErrors = getAllValidationErrors(node.data.type, node.data.config || {});
+        const configErrorCount = Object.values(configErrors).flat().length;
+        return `${node.data.label} (${configErrorCount} config error${configErrorCount > 1 ? 's' : ''})`;
+      } else if (hasExecutionErrors) {
+        return `${node.data.label} (execution failed)`;
+      }
+      return node.data.label;
+    }).join(', ');
+    
+    return `Errors found: ${errorSummary}`;
+  };
+  
+  // Calculate progress for running flow
+  const completedNodes = Object.values(flowRunner.status).filter(status => status === 'success').length;
+  const totalNodes = nodes.length;
+  const progress = totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0;
 
-  const loadTemplateFlow = () => {
+  const loadTemplateFlow = useCallback(() => {
     const templateNodes = [
       {
         id: 'node-1',
@@ -138,7 +184,29 @@ const FlowBuilder: React.FC = () => {
         toast.success('Template loaded', {
           description: 'Amazon Sales Report → AI Agent → Gmail/Slack template has been loaded.',
         });
-      };
+      }, [setNodes, setEdges]);
+
+  // Persistência local - salvar automaticamente
+  useEffect(() => {
+    localStorage.setItem("flowState", JSON.stringify({ nodes, edges }));
+  }, [nodes, edges]);
+
+  // Carregar estado salvo ou template inicial
+  useEffect(() => {
+    const saved = localStorage.getItem("flowState");
+    if (saved) {
+      try {
+        const { nodes: savedNodes, edges: savedEdges } = JSON.parse(saved);
+        setNodes(savedNodes || []);
+        setEdges(savedEdges || []);
+      } catch (error) {
+        console.error("Erro ao carregar estado salvo:", error);
+      }
+    } else {
+      // Load template flow if no saved state
+      loadTemplateFlow();
+    }
+  }, [setNodes, setEdges, loadTemplateFlow]);
 
   const handleBlockSelect = (blockType: string) => {
     const newNode = {
@@ -220,7 +288,20 @@ const FlowBuilder: React.FC = () => {
     setIsModalOpen(true);
   }, []);
 
-  const handleSaveModal = (id: string, data: any) => {
+  const handleSaveModal = (id: string, data: Record<string, unknown>) => {
+    // Validate the configuration before saving
+    const node = nodes.find(n => n.id === id);
+    if (node) {
+      const validationResult = validateBlockConfig(node.data.type, data);
+      
+      if (!validationResult.isValid) {
+        toast.error('Validation failed', {
+          description: 'Please fix the configuration errors before saving.',
+        });
+        return;
+      }
+    }
+    
     setNodes((nds) =>
       nds.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, ...data } } : node
@@ -238,69 +319,205 @@ const FlowBuilder: React.FC = () => {
           <header className="flex items-center justify-between px-4 py-3.5 border-b bg-background shadow-sm w-full flex-shrink-0">
             <div className="flex items-center space-x-3">
               <SidebarTrigger className="h-8 w-8" />
-              <div className="flex items-center space-x-2">
-                <h1 className="text-lg font-semibold">Flow Builder</h1>
-                <Badge variant="outline" className="text-xs">{nodes.length} nodes</Badge>
-              </div>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-lg font-semibold">Flow Builder</h1>
+                    <Badge variant="outline" className="text-xs">{nodes.length} nodes</Badge>
+                    
+                    <TooltipProvider>
+                      {validationStatus === 'error' && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              variant="destructive" 
+                              className="text-xs cursor-pointer hover:bg-destructive/80"
+                              onClick={() => setIsValidationLogsOpen(true)}
+                            >
+                              {nodesWithErrors.length} error{nodesWithErrors.length > 1 ? 's' : ''}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">{getValidationErrorSummary()}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Click to view details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      
+                      {validationStatus === 'valid' && nodes.length > 0 && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              variant="secondary" 
+                              className="text-xs text-green-600 cursor-pointer hover:bg-secondary/80"
+                              onClick={() => setIsValidationLogsOpen(true)}
+                            >
+                              All valid
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>All nodes are properly configured</p>
+                            <p className="text-xs text-muted-foreground mt-1">Click to view validation logs</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </TooltipProvider>
+                    
+                    {/* Progress indicator */}
+                    {isRunning && totalNodes > 0 && (
+                      <motion.div
+                        className="flex items-center space-x-2"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-primary rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {completedNodes}/{totalNodes}
+                        </span>
+                      </motion.div>
+                    )}
+                  </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Button
-                onClick={flowRunner.runFlow}
-                disabled={nodes.length === 0}
-                size="sm"
-                className="flex items-center space-x-1"
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Play className="h-3 w-3" />
-                <span className="text-xs">Run</span>
-              </Button>
+                <Button
+                  onClick={handleRunFlow}
+                  disabled={nodes.length === 0 || isRunning}
+                  size="sm"
+                  className="flex items-center space-x-1 relative overflow-hidden"
+                >
+                  <motion.div
+                    className="flex items-center space-x-1"
+                    animate={isRunning ? {
+                      scale: [1, 1.1, 1],
+                    } : {}}
+                    transition={{
+                      duration: 0.8,
+                      repeat: isRunning ? Infinity : 0,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <motion.div
+                      animate={isRunning ? {
+                        rotate: 360,
+                      } : {}}
+                      transition={{
+                        duration: 1,
+                        repeat: isRunning ? Infinity : 0,
+                        ease: "linear"
+                      }}
+                    >
+                      <Play className="h-3 w-3" />
+                    </motion.div>
+                    <span className="text-xs">
+                      {isRunning ? 'Running...' : 'Run'}
+                    </span>
+                  </motion.div>
+                  
+                  {/* Pulsing background for running state */}
+                  {isRunning && (
+                    <motion.div
+                      className="absolute inset-0 bg-primary/20"
+                      animate={{
+                        opacity: [0.3, 0.6, 0.3],
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  )}
+                </Button>
+              </motion.div>
               
-              <Button
-                onClick={loadTemplateFlow}
-                variant="outline"
-                size="sm"
-                className="flex items-center space-x-1"
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <RotateCcw className="h-3 w-3" />
-                <span className="text-xs">Template</span>
-              </Button>
+                <Button
+                  onClick={loadTemplateFlow}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <motion.div
+                    whileHover={{ rotate: 180 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </motion.div>
+                  <span className="text-xs">Template</span>
+                </Button>
+              </motion.div>
               
-              <Button
-                onClick={handleAutoArrange}
-                disabled={nodes.length === 0}
-                variant="outline"
-                size="sm"
-                className="flex items-center space-x-1"
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Layout className="h-3 w-3" />
-                <span className="text-xs">Arrange</span>
-              </Button>
+                <Button
+                  onClick={handleAutoArrange}
+                  disabled={nodes.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <motion.div
+                    whileHover={{ rotate: 15 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Layout className="h-3 w-3" />
+                  </motion.div>
+                  <span className="text-xs">Arrange</span>
+                </Button>
+              </motion.div>
               
-              <Button
-                onClick={handleClearCanvas}
-                variant="destructive"
-                size="sm"
-                className="flex items-center space-x-1"
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Trash2 className="h-3 w-3" />
-                <span className="text-xs">Clear</span>
-              </Button>
+                <Button
+                  onClick={handleClearCanvas}
+                  variant="destructive"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <motion.div
+                    whileHover={{ rotate: 15, scale: 1.1 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </motion.div>
+                  <span className="text-xs">Clear</span>
+                </Button>
+              </motion.div>
             </div>
           </header>
 
           {/* Canvas */}
-          <main className="flex-1 w-full min-h-0">
-            <Canvas
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={() => {}} // No longer needed
-              onNodeDoubleClick={openModal}
-              onCogClick={openModal}
-              status={flowRunner.status}
-            />
-          </main>
+              <main className="flex-1 w-full min-h-0">
+                <Canvas
+                  nodes={nodesWithErrorDetails}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onNodeClick={() => {}} // No longer needed
+                  onNodeDoubleClick={openModal}
+                  onCogClick={openModal}
+                  status={flowRunner.status}
+                />
+              </main>
         </div>
 
         {/* Modal */}
@@ -309,6 +526,15 @@ const FlowBuilder: React.FC = () => {
           onClose={() => setIsModalOpen(false)}
           node={activeNode}
           onSave={handleSaveModal}
+        />
+        
+        {/* Validation Logs Drawer */}
+        <ValidationLogsDrawer
+          isOpen={isValidationLogsOpen}
+          onClose={() => setIsValidationLogsOpen(false)}
+          nodes={nodes}
+          validationErrors={nodesWithConfigErrors}
+          executionErrors={flowRunner.status as Record<string, string>}
         />
       </div>
     </SidebarProvider>
