@@ -1,8 +1,17 @@
+import type { LucideIcon } from 'lucide-react';
+import { 
+  Bot, 
+  Zap, 
+  Settings, 
+  HelpCircle, 
+  Clock 
+} from 'lucide-react';
+
 export interface BlockType {
   id: string;
   name: string;
   description: string;
-  icon: string;
+  icon: LucideIcon | string; // Can be either Lucide icon or image path
   color: string;
   category: 'trigger' | 'action' | 'condition' | 'utility';
   defaultConfig: any;
@@ -11,11 +20,81 @@ export interface BlockType {
 }
 
 export const blockTypes: Record<string, BlockType> = {
+  // Template blocks for the initial flow
+  amazonSales: {
+    id: 'amazonSales',
+    name: 'Amazon Sales Report',
+    description: 'Pull sales data from Amazon',
+    icon: '/amazon.png',
+    color: 'orange',
+    category: 'action',
+    defaultConfig: {
+      metric: 'Revenue',
+      timeframe: 'Last 30 days',
+      name: 'Amazon Sales Report',
+      description: 'Pull sales data from Amazon'
+    },
+    inputs: ['success'],
+    outputs: ['success', 'error']
+  },
+  
+  aiAgent: {
+    id: 'aiAgent',
+    name: 'AI Agent',
+    description: 'Turn data into insights and recommendations',
+    icon: Bot,
+    color: 'purple',
+    category: 'action',
+    defaultConfig: {
+      systemPrompt: 'You are a helpful business analyst. Analyze the provided data and provide clear insights and actionable recommendations.',
+      name: 'AI Agent',
+      description: 'AI-powered data analysis'
+    },
+    inputs: ['success'],
+    outputs: ['success', 'error']
+  },
+  
+  gmail: {
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'Send an email via Gmail',
+    icon: '/gmail.png',
+    color: 'red',
+    category: 'action',
+    defaultConfig: {
+      recipient: '',
+      subject: '',
+      message: '',
+      name: 'Gmail',
+      description: 'Send email via Gmail'
+    },
+    inputs: ['success'],
+    outputs: ['success', 'error']
+  },
+  
+  slack: {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Send a message to Slack',
+    icon: '/slack.png',
+    color: 'purple',
+    category: 'action',
+    defaultConfig: {
+      channel: '#general',
+      message: '',
+      name: 'Slack',
+      description: 'Send message to Slack'
+    },
+    inputs: ['success'],
+    outputs: ['success', 'error']
+  },
+  
+  // Original blocks (kept for compatibility)
   trigger: {
     id: 'trigger',
     name: 'Trigger',
     description: 'Starts the workflow execution',
-    icon: '⚡',
+    icon: Zap,
     color: 'green',
     category: 'trigger',
     defaultConfig: {
@@ -31,7 +110,7 @@ export const blockTypes: Record<string, BlockType> = {
     id: 'action',
     name: 'Action',
     description: 'Performs a specific action',
-    icon: '🔧',
+    icon: Settings,
     color: 'blue',
     category: 'action',
     defaultConfig: {
@@ -47,7 +126,7 @@ export const blockTypes: Record<string, BlockType> = {
     id: 'condition',
     name: 'Condition',
     description: 'Evaluates a condition and branches the flow',
-    icon: '❓',
+    icon: HelpCircle,
     color: 'yellow',
     category: 'condition',
     defaultConfig: {
@@ -65,7 +144,7 @@ export const blockTypes: Record<string, BlockType> = {
     id: 'delay',
     name: 'Delay',
     description: 'Pauses execution for a specified time',
-    icon: '⏱️',
+    icon: Clock,
     color: 'purple',
     category: 'utility',
     defaultConfig: {
@@ -76,78 +155,6 @@ export const blockTypes: Record<string, BlockType> = {
     },
     inputs: ['success'],
     outputs: ['success']
-  },
-  
-  webhook: {
-    id: 'webhook',
-    name: 'Webhook',
-    description: 'Receives HTTP requests',
-    icon: '🌐',
-    color: 'green',
-    category: 'trigger',
-    defaultConfig: {
-      method: 'POST',
-      path: '/webhook',
-      name: 'New Webhook',
-      description: 'HTTP webhook endpoint'
-    },
-    inputs: [],
-    outputs: ['success']
-  },
-  
-  email: {
-    id: 'email',
-    name: 'Send Email',
-    description: 'Sends an email message',
-    icon: '📧',
-    color: 'blue',
-    category: 'action',
-    defaultConfig: {
-      to: '',
-      subject: '',
-      body: '',
-      name: 'New Email',
-      description: 'Send email action'
-    },
-    inputs: ['success'],
-    outputs: ['success', 'error']
-  },
-  
-  api: {
-    id: 'api',
-    name: 'API Call',
-    description: 'Makes an HTTP API request',
-    icon: '🔗',
-    color: 'blue',
-    category: 'action',
-    defaultConfig: {
-      method: 'GET',
-      url: '',
-      headers: {},
-      body: '',
-      name: 'New API Call',
-      description: 'HTTP API request'
-    },
-    inputs: ['success'],
-    outputs: ['success', 'error']
-  },
-  
-  database: {
-    id: 'database',
-    name: 'Database',
-    description: 'Performs database operations',
-    icon: '🗄️',
-    color: 'blue',
-    category: 'action',
-    defaultConfig: {
-      operation: 'select',
-      table: '',
-      query: '',
-      name: 'New Database',
-      description: 'Database operation'
-    },
-    inputs: ['success'],
-    outputs: ['success', 'error']
   }
 };
 
