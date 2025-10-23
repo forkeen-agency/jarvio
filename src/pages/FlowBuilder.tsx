@@ -3,7 +3,7 @@ import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import type { Node, Connection } from 'reactflow';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Layout, Trash2, RotateCcw } from 'lucide-react';
+import { Play, Layout, Trash2, RotateCcw, Save } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from 'sonner';
@@ -191,6 +191,62 @@ const FlowBuilder: React.FC = () => {
     localStorage.setItem("flowState", JSON.stringify({ nodes, edges }));
   }, [nodes, edges]);
 
+  const handleDeleteNode = useCallback((id: string) => {
+    const nodeToDelete = nodes.find(n => n.id === id);
+    if (!nodeToDelete) return;
+
+    setNodes((nds) => {
+      const updatedNodes = nds.filter(node => node.id !== id);
+      
+      // Save to localStorage for session persistence
+      localStorage.setItem("flowState", JSON.stringify({ 
+        nodes: updatedNodes, 
+        edges 
+      }));
+      
+      return updatedNodes;
+    });
+
+    // Remove any edges connected to this node
+    setEdges((eds) => {
+      const updatedEdges = eds.filter(edge => edge.source !== id && edge.target !== id);
+      
+      // Save to localStorage for session persistence
+      localStorage.setItem("flowState", JSON.stringify({ 
+        nodes: nodes.filter(n => n.id !== id), 
+        edges: updatedEdges 
+      }));
+      
+      return updatedEdges;
+    });
+
+    // Close modal if the deleted node was active
+    if (activeNode && activeNode.id === id) {
+      setIsModalOpen(false);
+      setActiveNode(null);
+    }
+
+    toast.success('Block deleted', {
+      description: `${nodeToDelete.data.label} has been removed from your flow.`,
+    });
+  }, [nodes, edges, activeNode, setNodes, setEdges]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle Delete key for selected nodes
+      if (event.key === 'Delete' && activeNode) {
+        event.preventDefault();
+        handleDeleteNode(activeNode.id);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeNode, handleDeleteNode]);
+
   // Carregar estado salvo ou template inicial
   useEffect(() => {
     const saved = localStorage.getItem("flowState");
@@ -286,6 +342,10 @@ const FlowBuilder: React.FC = () => {
     console.log('openModal called with node:', node);
     setActiveNode(node);
     setIsModalOpen(true);
+  }, []);
+
+  const handleNodeSelect = useCallback((_event: React.MouseEvent, node: Node) => {
+    setActiveNode(node);
   }, []);
 
   const handleSaveModal = (id: string, data: Record<string, unknown>) => {
@@ -416,6 +476,7 @@ const FlowBuilder: React.FC = () => {
                   </div>
             </div>
             <div className="flex items-center space-x-2">
+              {/* Run Flow Button */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -424,12 +485,12 @@ const FlowBuilder: React.FC = () => {
                   onClick={handleRunFlow}
                   disabled={nodes.length === 0 || isRunning}
                   size="sm"
-                  className="flex items-center space-x-1 relative overflow-hidden"
+                  className="flex items-center space-x-2 relative overflow-hidden bg-green-600 hover:bg-green-700 text-white border-0 shadow-sm"
                 >
                   <motion.div
-                    className="flex items-center space-x-1"
+                    className="flex items-center space-x-2"
                     animate={isRunning ? {
-                      scale: [1, 1.1, 1],
+                      scale: [1, 1.05, 1],
                     } : {}}
                     transition={{
                       duration: 0.8,
@@ -447,17 +508,17 @@ const FlowBuilder: React.FC = () => {
                         ease: "linear"
                       }}
                     >
-                      <Play className="h-3 w-3" />
+                      <Play className="h-4 w-4" />
                     </motion.div>
-                    <span className="text-xs">
-                      {isRunning ? 'Running...' : 'Run'}
+                    <span className="text-sm font-medium">
+                      {isRunning ? 'Running...' : 'Run Flow'}
                     </span>
                   </motion.div>
                   
                   {/* Pulsing background for running state */}
                   {isRunning && (
                     <motion.div
-                      className="absolute inset-0 bg-primary/20"
+                      className="absolute inset-0 bg-green-500/20"
                       animate={{
                         opacity: [0.3, 0.6, 0.3],
                       }}
@@ -471,6 +532,7 @@ const FlowBuilder: React.FC = () => {
                 </Button>
               </motion.div>
               
+              {/* Template Button */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -479,18 +541,19 @@ const FlowBuilder: React.FC = () => {
                   onClick={loadTemplateFlow}
                   variant="outline"
                   size="sm"
-                  className="flex items-center space-x-1"
+                  className="flex items-center space-x-2 border-blue-300 hover:bg-blue-50 text-blue-700"
                 >
                   <motion.div
                     whileHover={{ rotate: 180 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <RotateCcw className="h-3 w-3" />
+                    <RotateCcw className="h-4 w-4" />
                   </motion.div>
-                  <span className="text-xs">Template</span>
+                  <span className="text-sm font-medium">Load Template</span>
                 </Button>
               </motion.div>
               
+              {/* Auto Arrange Button */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -500,18 +563,39 @@ const FlowBuilder: React.FC = () => {
                   disabled={nodes.length === 0}
                   variant="outline"
                   size="sm"
-                  className="flex items-center space-x-1"
+                  className="flex items-center space-x-2 border-purple-300 hover:bg-purple-50 text-purple-700 disabled:opacity-50"
                 >
                   <motion.div
                     whileHover={{ rotate: 15 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Layout className="h-3 w-3" />
+                    <Layout className="h-4 w-4" />
                   </motion.div>
-                  <span className="text-xs">Arrange</span>
+                  <span className="text-sm font-medium">Auto Arrange</span>
                 </Button>
               </motion.div>
               
+              {/* Save Flow Button */}
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  onClick={() => {
+                    toast.success('Flow saved', {
+                      description: 'Your flow has been saved to localStorage.',
+                    });
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-2 border-gray-300 hover:bg-gray-50 text-gray-700"
+                >
+                  <Save className="h-4 w-4" />
+                  <span className="text-sm font-medium">Save</span>
+                </Button>
+              </motion.div>
+              
+              {/* Clear Canvas Button */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -520,15 +604,15 @@ const FlowBuilder: React.FC = () => {
                   onClick={handleClearCanvas}
                   variant="destructive"
                   size="sm"
-                  className="flex items-center space-x-1"
+                  className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white border-0 shadow-sm"
                 >
                   <motion.div
                     whileHover={{ rotate: 15, scale: 1.1 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-4 w-4" />
                   </motion.div>
-                  <span className="text-xs">Clear</span>
+                  <span className="text-sm font-medium">Clear All</span>
                 </Button>
               </motion.div>
             </div>
@@ -542,10 +626,11 @@ const FlowBuilder: React.FC = () => {
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
-                  onNodeClick={() => {}} // No longer needed
+                  onNodeClick={handleNodeSelect}
                   onNodeDoubleClick={openModal}
                   onCogClick={openModal}
                   status={flowRunner.status}
+                  activeNode={activeNode}
                 />
               </main>
         </div>
@@ -556,6 +641,7 @@ const FlowBuilder: React.FC = () => {
           onClose={() => setIsModalOpen(false)}
           node={activeNode}
           onSave={handleSaveModal}
+          onDelete={handleDeleteNode}
         />
         
         {/* Validation Logs Drawer */}

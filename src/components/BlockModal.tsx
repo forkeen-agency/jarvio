@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Clock, FileText } from "lucide-react";
+import { AlertTriangle, Clock, FileText, Save, X, Trash2, TestTube } from "lucide-react";
 import { blockTypes } from "../data/blockTypes";
 import { motion } from "motion/react";
 
@@ -79,11 +79,12 @@ interface BlockModalProps {
     };
   } | null;
   onSave: (id: string, data: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
 }
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModalProps) {
+export default function BlockModal({ isOpen, onClose, node, onSave, onDelete }: BlockModalProps) {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -543,11 +544,17 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
               </Tabs>
             </div>
 
-        <DrawerFooter className="pt-4 px-6">
-          <div className="flex gap-2">
+        <DrawerFooter className="pt-6 px-6 border-t bg-muted/20">
+          <div className="space-y-3">
+            {/* Primary Actions */}
+            <div className="flex gap-3">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1"
+              >
                 <Button
                   type="button"
-                  variant="destructive"
                   onClick={() => {
                     toast.info('Test run started', {
                       description: `Testing ${node.data.label} configuration...`,
@@ -560,17 +567,77 @@ export default function BlockModal({ isOpen, onClose, node, onSave }: BlockModal
                       });
                     }, 1500);
                   }}
-                  className="flex-1"
-          >
-            ▶ Test Step
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-sm"
+                  size="sm"
+                >
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Test Step
                 </Button>
-            <Button onClick={form.handleSubmit(handleSave)} className="flex-1">
-              Save Parameters
-            </Button>
-        </div>
-          <DrawerClose asChild>
-            <Button variant="outline" className="w-full mt-2">Cancel</Button>
-          </DrawerClose>
+              </motion.div>
+              
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1"
+              >
+                <Button 
+                  onClick={form.handleSubmit(handleSave)} 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white border-0 shadow-sm"
+                  size="sm"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </motion.div>
+            </div>
+            
+            {/* Secondary Actions */}
+            <div className="flex gap-3">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1"
+              >
+                <DrawerClose asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-gray-300 hover:bg-gray-50 text-gray-700"
+                    size="sm"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </DrawerClose>
+              </motion.div>
+              
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1"
+              >
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    if (node) {
+                      onDelete(node.id);
+                    }
+                  }}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white border-0 shadow-sm"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Block
+                </Button>
+              </motion.div>
+            </div>
+          </div>
+          
+          {/* Helpful hint */}
+          <div className="mt-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              💡 Tip: Use <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded">Delete</kbd> key to quickly remove selected blocks
+            </p>
+          </div>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
