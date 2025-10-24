@@ -452,9 +452,6 @@ export default function Canvas({ nodes, edges, onNodesChange, onEdgesChange, onC
             width: 10,
             height: 10,
           },
-          pathOptions: {
-            borderRadius: 20,
-          },
         }}
       >
         <Background />

@@ -1,8 +1,7 @@
-import React from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, CheckCircle, XCircle, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Info } from 'lucide-react';
 import type { Node } from 'reactflow';
 import { getAllValidationErrors } from '../utils/validation';
 
@@ -66,7 +65,7 @@ export default function ValidationLogsDrawer({
                   <h2 className="font-medium text-red-600">Issues ({nodesWithErrors.length})</h2>
                 </div>
                 
-                {nodesWithErrors.map((node, index) => {
+                {nodesWithErrors.map((node) => {
                   const validationErrorDetails = getValidationErrorDetails(node);
                   const hasConfigErrors = hasValidationErrors(node);
                   const hasExecErrors = hasExecutionErrors(node);
@@ -125,7 +124,7 @@ export default function ValidationLogsDrawer({
                 </div>
                 
                 <div className="grid gap-2">
-                  {validNodes.map((node, index) => (
+                  {validNodes.map((node) => (
                     <div key={node.id} className="border border-green-200 rounded-lg p-3 bg-green-50 dark:bg-green-900/10">
                       <div className="flex items-center space-x-2">
                         <CheckCircle className="h-3 w-3 text-green-500" />
